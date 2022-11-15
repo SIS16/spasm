@@ -625,7 +625,7 @@ fn report_tokenizer_error(
     );
     eprintln!(
         "{}",
-        Colour::Black.dimmed().paint(format!(
+        Colour::Fixed(246).paint(format!(
             "{}:{}:{}",
             // Conanicalization is platform specific
             if cfg!(target_os = "windows") {
