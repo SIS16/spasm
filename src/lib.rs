@@ -25,15 +25,24 @@ pub fn assemble_file(args: AssemblerArguments) {
 
     // Read entire file
     let content = fs::read(&path).expect("Could not read file");
+
+    // Parse the file as a utf-8 encoded string
     let content = String::from_utf8(content).expect("Could not parse file as utf-8");
 
+    // Map the file contents into a Vec of lines
     let lines: Vec<_> = content.lines().map(|string| string.to_owned()).collect();
 
+    // Lex the file into a token vector
     let mut tokens = token::tokenize_lines(&path, &lines);
 
-    let ast = parse::build_program(&path, &lines, &mut tokens);
+    // Build the program from the token vector
+    let program = parse::build_program(&path, &lines, &mut tokens);
 
-    println!("{:#?}", ast)
+    println!("{program:#?}")
+
+    // TODO - Resolve all labels
+
+    // TODO - Compile into binary output file
 }
 
 pub fn report_error(
@@ -44,11 +53,14 @@ pub fn report_error(
     col_start: u32,
     col_end: u32,
 ) -> ! {
+    // Print error message
     eprintln!(
         "{} {}",
         Colour::Red.bold().paint("[ERROR]"),
         Colour::Red.paint(error)
     );
+
+    // Print the file path with the line and col number
     eprintln!(
         "{}",
         Colour::Fixed(246).paint(format!(
@@ -69,6 +81,7 @@ pub fn report_error(
         ))
     );
 
+    // Print the lines around and including the one with the error
     let start = if line_number < 2 { 0 } else { line_number - 2 };
 
     for n in start..line_number + 1 {
@@ -79,21 +92,25 @@ pub fn report_error(
         );
     }
 
+    // Print the space before the highlight
     for _ in 0..col_start + 5 {
         eprint!(" ");
     }
 
+    // Print the underline highlight
     for _ in col_start..col_end {
         eprint!("{}", Colour::Red.paint("^"));
     }
 
     eprintln!("");
 
+    // Print the space before "here"
     for _ in 0..col_start + 5 {
         eprint!(" ");
     }
 
     eprintln!("{}", Colour::Red.paint("here"));
 
+    // Exit with non-zero code to signal an error occurred
     std::process::exit(1);
 }

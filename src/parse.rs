@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::VecDeque, num::{IntErrorKind, self}, path::PathBuf};
+use std::{collections::VecDeque, num::IntErrorKind, path::PathBuf};
 
 use crate::{
     report_error,
@@ -108,7 +108,7 @@ impl Parsable for DataSection {
             // Start parsing this section as a label
             let TokenType::Label(label_name) = first_token.token_type else {
                 report_error(
-                    format!("Unexpected token '{:?}' in data section.", first_token.token_type).as_str(),
+                    format!("Unexpected token `{}` in data section.", first_token.value).as_str(),
                     path,
                     lines,
                     first_token.line_number,
@@ -335,8 +335,8 @@ impl Parsable for InstructionArgumentType {
 
                     report_error(
                         format!(
-                            "Unexpected token `{:?}` after number literal!",
-                            illegal_token.token_type
+                            "Unexpected token `{}` after number literal!",
+                            illegal_token.value
                         )
                         .as_str(),
                         path,
@@ -485,8 +485,8 @@ impl Parsable for InstructionArgumentType {
 
                     report_error(
                         format!(
-                            "Unexpected token `{:?}` after label identifier!",
-                            illegal_token.token_type
+                            "Unexpected token `{}` after label identifier!",
+                            illegal_token.value
                         )
                         .as_str(),
                         path,
@@ -710,7 +710,7 @@ impl Parsable for TextSection {
             // Start parsing this section as a label
             let TokenType::Label(label_name) = first_token.token_type else {
                 report_error(
-                    format!("Unexpected token '{:?}' in text section.", first_token.token_type).as_str(),
+                    format!("Unexpected token `{}` in text section.", first_token.value).as_str(),
                     path,
                     lines,
                     first_token.line_number,
@@ -774,8 +774,6 @@ impl Parsable for TextSection {
                     col_end,
                 );
 
-                println!("Parsed instruction: {instruction:#?}");
-
                 subroutine_label.instructions.push(instruction);
             }
 
@@ -815,6 +813,7 @@ pub enum Instruction {
     jmp_Immediate(u16),                             // jmp #$F354           ; Jump to memory address #$F354
     jmp_Register(Register),                         // jmp %ebx             ; Jump to memory address stored in %ebx
     jmp_Memory(u16),                                // jmp $F354            ; Jump to memory address stored in address $F354
+    jmp_Label(SubroutineLabel),                     // jmp boot_loader      ; Jump to subroutine boot_loader but don't push pc onto the stack
     jsr(SubroutineLabel),                           // jsr boot_loader      ; Push current pc onto stack and jump to subroutine boot_loader
     ret,                                            // ret                  ; Pop return address off stack and jump back
     /* syscalls */
@@ -890,6 +889,7 @@ impl Instruction {
                         InstructionArgumentType::Register(dest_register),
                         InstructionArgumentType::Register(src_register), 
                     ) => Instruction::mov_RegisterToRegister(dest_register, src_register),
+                    // TODO - Implement 8 bit immediate parsing
                     (
                         InstructionArgumentType::MemoryAddress(address),
                         InstructionArgumentType::Immediate(immediate_16), 
@@ -971,7 +971,7 @@ pub fn build_program(path: &PathBuf, lines: &Vec<String>, tokens: &mut VecDeque<
 
         let TokenType::Directive(name) = token.token_type else {
             report_error(
-                format!("Unexpected token '{:?}'. Program should start with either .data or .text section directive!", token.token_type).as_str(),
+                format!("Unexpected token `{}`. Program should start with either .data or .text section directive!", token.value).as_str(),
                 path,
                 lines,
                 token.line_number,

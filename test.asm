@@ -1,14 +1,18 @@
-
-.data
-
-    testing:
-        .word %1111111111111111
-    msg:                            
-        .ascii "Hello World\n"  ; Declare some ascii data
-        .ascii "Your Mom\n"     ; Declare some ascii data
-    pi:  
-        .word  65535            ; Declare a word constant
-        .word  $FFFF            ; Declare a word constant
+.data[]
+    bin:
+        .word %1111111111111111             ; Declare a binary word constant
+    dec:  
+        .word  65535                        ; Declare a decimal word constant
+    hex:
+        .word  $FFFF                        ; Declare a hexadecimal word constant
+    multi_word:
+        .word  $420                         ; Declare a hexadecimal word constant
+        .word  69                           ; Declare a decimal word constant
+    msg:
+        .ascii "Hello World\n"              ; Declare some ascii data
+    multi_msg:
+        .ascii "Your Mom\n"                 ; Declare some more ascii data
+        .ascii "Never Gonna Give You Up\n"  ; Declare even more ascii data
 
 .text
 
@@ -22,7 +26,5 @@ _start:
     mov $F354, #420      ; Copy 16 bit immediate #420 to mem addresses $F354-F355
     add %ebx             ; Add the value of %ebx to the accumulator register
     add #2               ; Add 2 to the accumulator register
-    add %ebx, %ecx        ; Add the value of %ecx to the value in %ebx
+    add %ebx, %ecx       ; Add the value of %ecx to the value in %ebx
     add %ebx, #2         ; Add 2 to the value in %ebx
-a:
-    ret

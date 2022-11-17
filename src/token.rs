@@ -130,7 +130,7 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
                 (';', _, _) => break,
                 // Directive
                 ('.', _, _) => {
-                    let identifier = read_to_char(' ', &mut col_number, &mut chars);
+                    let identifier =  read_to_chars(vec![' ', ']', ')', '[', '(', ','], &mut col_number, &mut chars);
 
                     let Some(value) = identifier else {
                         report_error(
@@ -170,7 +170,7 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
                 // Could be a label, an instruction, or an identifier
                 (_, true, _) => {
                     let proceeding =
-                        read_to_chars(vec![' ', ']', ')', ','], &mut col_number, &mut chars);
+                        read_to_chars(vec![' ', ']', ')', '[', '(', ','], &mut col_number, &mut chars);
 
                     let value = match proceeding {
                         Some(val) => val,
@@ -497,32 +497,6 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
     }
 
     tokens
-}
-
-fn read_to_char(
-    character: char,
-    col_number: &mut u32,
-    chars: &mut VecDeque<char>,
-) -> Option<String> {
-    if chars.is_empty() {
-        return None;
-    }
-
-    let mut string = String::new();
-
-    while !chars.is_empty() {
-        if *chars.front().unwrap() == character {
-            return if string.len() > 0 { Some(string) } else { None };
-        }
-
-        let character = chars.pop_front().unwrap();
-        *col_number += 1;
-
-        // TODO - probably not efficient
-        string.push_str(character.to_string().as_str());
-    }
-
-    Some(string)
 }
 
 fn read_to_char_inclusive(
