@@ -1,4 +1,4 @@
-.data[]
+.data
     bin:
         .word %1111111111111111             ; Declare a binary word constant
     dec:  
