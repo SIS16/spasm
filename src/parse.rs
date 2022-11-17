@@ -801,7 +801,7 @@ pub enum Instruction {
     add_RegisterToAccumulator(Register),            // add %ebx             ; Add the value of %ebx to the accumulator register
     add_ImmediateToAccumulator(u16),                // add #2               ; Add 2 to the accumulator register
     /* add - to register */
-    add_RegisterToRegister(Register, Register),     // add %ebx, %ecx        ; Add the value of %ecx to the value in %ebx
+    add_RegisterToRegister(Register, Register),     // add %ebx, %ecx       ; Add the value of %ecx to the value in %ebx
     add_ImmediateToRegister(Register, u16),         // add %ebx, #2         ; Add 2 to the value in %ebx
     /* inc/dec - accumulator */
     inc_Accumulator,                                // inc                  ; Increment the accumulator
