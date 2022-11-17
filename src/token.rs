@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{collections::VecDeque, num::IntErrorKind, path::PathBuf};
 
 use regex::Regex;
 
@@ -31,6 +31,68 @@ pub enum TokenType {
     CloseBracket,      // ']'
     OpenParenthesis,   // '('
     CloseParenthesis,  // ')'
+}
+
+impl Token {
+    pub fn parse_u16(&self, path: &PathBuf, lines: &Vec<String>) -> u16 {
+        match &self.token_type {
+            TokenType::Binary(value) => {
+                // Parse from string value
+                match u16::from_str_radix(value, 2) {
+                    Ok(v) => v,
+                    Err(err) => match err.kind() {
+                        // Greater than a 16 bit word
+                        IntErrorKind::PosOverflow => report_error(
+                            "Binary literal is larger than expected 16-bit word! (Max is %1111111111111111)",
+                            path,
+                            lines,
+                            self.line_number,
+                            self.column_start,
+                            self.column_end,
+                        ),
+                        kind => panic!("Unexpected IntErrorKind: {kind:?}"),
+                    },
+                }
+            }
+            TokenType::Decimal(value) => {
+                // Parse from string value
+                match u16::from_str_radix(value, 10) {
+                    Ok(v) => v,
+                    Err(err) => match err.kind() {
+                        // Greater than a 16 bit word
+                        IntErrorKind::PosOverflow => report_error(
+                            "Decimal literal is larger than expected 16-bit word! (Max is 65535)",
+                            path,
+                            lines,
+                            self.line_number,
+                            self.column_start,
+                            self.column_end,
+                        ),
+                        kind => panic!("Unexpected IntErrorKind: {kind:?}"),
+                    },
+                }
+            }
+            TokenType::Hex(value) => {
+                // Parse from string value
+                match u16::from_str_radix(value, 16) {
+                    Ok(v) => v,
+                    Err(err) => match err.kind() {
+                        // Greater than a 16 bit word
+                        IntErrorKind::PosOverflow => report_error(
+                            "Hexadecimal literal is larger than expected 16-bit word! (Max is $FFFF)",
+                            path,
+                            lines,
+                            self.line_number,
+                            self.column_start,
+                            self.column_end,
+                        ),
+                        kind => panic!("Unexpected IntErrorKind: {kind:?}"),
+                    },
+                }
+            }
+            _ => panic!("Cannot parse u16 from non number type!"),
+        }
+    }
 }
 
 pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
@@ -221,7 +283,7 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
                 }
                 // Register name or binary value
                 ('%', _, _) => {
-                    let value = read_to_chars(vec![' ', ',', ';'], &mut col_number, &mut chars);
+                    let value = read_to_chars(vec![' ', ',', ';', '(', ')', '[', ']'], &mut col_number, &mut chars);
 
                     let Some(value) = value else {
                         report_error(
@@ -306,7 +368,7 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
                 }
                 // Hex Value
                 ('$', _, _) => {
-                    let value = read_to_chars(vec![' ', ',', ';'], &mut col_number, &mut chars);
+                    let value = read_to_chars(vec![' ', ',', ';', '(', ')', '[', ']'], &mut col_number, &mut chars);
 
                     let Some(value) = value else {
                         report_error(
@@ -354,7 +416,7 @@ pub fn tokenize_lines(path: &PathBuf, lines: &Vec<String>) -> VecDeque<Token> {
                     });
                 }
                 (_, _, true) => {
-                    let literal = read_to_chars(vec![' ', ',', ';'], &mut col_number, &mut chars);
+                    let literal = read_to_chars(vec![' ', ',', ';', '(', ')', '[', ']'], &mut col_number, &mut chars);
 
                     let value = match literal {
                         Some(val) => val,

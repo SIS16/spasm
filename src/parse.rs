@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::VecDeque, num::IntErrorKind, path::PathBuf};
+use std::{collections::VecDeque, num::{IntErrorKind, self}, path::PathBuf};
 
 use crate::{
     report_error,
@@ -20,6 +20,10 @@ impl Program {
         }
     }
 
+    /**
+     * Used for resolving and validating constant labels
+     */
+    #[allow(dead_code)]
     fn find_constant_label(&self, name: &str) -> Option<&ConstantLabel> {
         let Some(data) = &self.data else {
             return None;
@@ -34,6 +38,10 @@ impl Program {
         None
     }
 
+    /**
+     * Used for resolving and validating subroutines labels
+     */
+    #[allow(dead_code)]
     fn find_subroutine_label(&self, name: &str) -> Option<&SubroutineLabel> {
         let Some(text) = &self.text else {
             return None;
@@ -293,14 +301,15 @@ pub struct SubroutineLabel {
     instructions: Vec<Instruction>,
 }
 
+#[rustfmt::skip]
 #[derive(Debug)]
 pub enum InstructionArgumentType {
-    NumberImmediate(u16),       // Immediate Value - #$FFFF
-    MemoryAddress(u16),         // Memory Address - $FFFF
-    MemoryAddressIndirect(u16), // Memory Address - ($FFFF)
-    LabelAddress(String),       // Label Name - boot_loader
-    LabelValue(String),         // Label Name - [boot_loader]
-    Register(Register),         // Register - %eax
+    Immediate(u16),       // Immediate Value - #$FFFF     ; Uses the immediate value as the argument
+    MemoryAddress(u16),         // Memory Address - $FFFF       ; Uses the 8-bit value at this memory address as the argument
+    MemoryAddressIndirect(u16), // Memory Address - ($FFFF)     ; Uses the little endian 16-bit word at this memory address as the argument
+    LabelAddress(String),       // Label Name - boot_loader     ; Uses the rom address of the constant as the argument
+    LabelValue(String),         // Label Name - [boot_loader]   ; Uses the immediate value of this constant as the argument
+    Register(Register),         // Register - %eax              ; Uses this register as the argument
 }
 
 impl Parsable for InstructionArgumentType {
@@ -309,9 +318,309 @@ impl Parsable for InstructionArgumentType {
         lines: &Vec<String>,
         tokens: &mut VecDeque<Token>,
     ) -> InstructionArgumentType {
+        assert!(
+            !tokens.is_empty(),
+            "Vec passed to InstructionArgumentType parser should contain at least one token"
+        );
+
         let first_token = tokens.pop_front().unwrap();
 
-        todo!()
+        match &first_token.token_type {
+            TokenType::Binary(_) | TokenType::Decimal(_) | TokenType::Hex(_) => {
+                let value = first_token.parse_u16(path, lines);
+
+                // There should not be any more tokens after a memory literal
+                if !tokens.is_empty() {
+                    let illegal_token = tokens.pop_front().unwrap();
+
+                    report_error(
+                        format!(
+                            "Unexpected token `{:?}` after number literal!",
+                            illegal_token.token_type
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        illegal_token.line_number,
+                        illegal_token.column_start,
+                        illegal_token.column_end,
+                    )
+                }
+
+                InstructionArgumentType::MemoryAddress(value)
+            }
+            TokenType::Immediate => {
+                // Make sure that there is a number after the immediate specifier
+                let Some(number_token) = tokens.pop_front() else {
+                    report_error(
+                        "Expected number literal after immediate specifier `#`!",
+                        path,
+                        lines,
+                        first_token.line_number,
+                        first_token.column_start,
+                        first_token.column_end,
+                    )
+                };
+
+                match &number_token.token_type {
+                    TokenType::Binary(_) | TokenType::Decimal(_) | TokenType::Hex(_) => {
+                        let value = number_token.parse_u16(path, lines);
+
+                        // There should not be any more tokens after an immediate value
+                        if !tokens.is_empty() {
+                            let illegal_token = tokens.pop_front().unwrap();
+
+                            report_error(
+                                format!(
+                                    "Unexpected token `{}` after immediate number literal!",
+                                    illegal_token.value
+                                )
+                                .as_str(),
+                                path,
+                                lines,
+                                illegal_token.line_number,
+                                illegal_token.column_start,
+                                illegal_token.column_end,
+                            )
+                        }
+
+                        InstructionArgumentType::Immediate(value)
+                    }
+                    _ => report_error(
+                        format!(
+                            "Unexpected token `{}` after immediate specifier!",
+                            number_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        number_token.line_number,
+                        number_token.column_start,
+                        number_token.column_end,
+                    ),
+                }
+            }
+            TokenType::OpenParenthesis => {
+                // Make sure that there is a number after the opening paren
+                let Some(address_token) = tokens.pop_front() else {
+                    report_error(
+                        "Expected memory address after opening parenthesis `(`!",
+                        path,
+                        lines,
+                        first_token.line_number,
+                        first_token.column_start,
+                        first_token.column_end,
+                    )
+                };
+
+                let address = match &address_token.token_type {
+                    TokenType::Binary(_) | TokenType::Decimal(_) | TokenType::Hex(_) => {
+                        address_token.parse_u16(path, lines)
+                    }
+                    _ => report_error(
+                        format!(
+                            "Unexpected token `{}` after opening parenthesis!",
+                            address_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        address_token.line_number,
+                        address_token.column_start,
+                        address_token.column_end,
+                    ),
+                };
+
+                /* Validate the closing parens */
+
+                let Some(close_token) = tokens.pop_front() else {
+                    report_error(
+                        "Expected closing parenthesis after memory address!",
+                        path,
+                        lines,
+                        address_token.line_number,
+                        address_token.column_start,
+                        address_token.column_end,
+                    )
+                };
+
+                let TokenType::CloseParenthesis = close_token.token_type else {
+                    report_error(
+                        format!(
+                            "Unexpected token `{}` after memory address! Expected closing parenthesis!",
+                            close_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        close_token.line_number,
+                        close_token.column_start,
+                        close_token.column_end,
+                    )
+                };
+
+                // There should not be any more tokens after an indirect memory address
+                if !tokens.is_empty() {
+                    let illegal_token = tokens.pop_front().unwrap();
+
+                    report_error(
+                        format!(
+                            "Unexpected token `{}` after indirect memory address!",
+                            illegal_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        illegal_token.line_number,
+                        illegal_token.column_start,
+                        illegal_token.column_end,
+                    )
+                }
+
+                InstructionArgumentType::MemoryAddressIndirect(address)
+            }
+            TokenType::Identifier(value) => {
+                if !tokens.is_empty() {
+                    let illegal_token = tokens.pop_front().unwrap();
+
+                    report_error(
+                        format!(
+                            "Unexpected token `{:?}` after label identifier!",
+                            illegal_token.token_type
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        illegal_token.line_number,
+                        illegal_token.column_start,
+                        illegal_token.column_end,
+                    )
+                }
+
+                InstructionArgumentType::LabelAddress(value.clone())
+            }
+            TokenType::OpenBracket => {
+                // Make sure that there is a label name after the bracket
+                let Some(identifier_token) = tokens.pop_front() else {
+                    report_error(
+                        "Expected label identifier after opening bracket `[`!",
+                        path,
+                        lines,
+                        first_token.line_number,
+                        first_token.column_start,
+                        first_token.column_end,
+                    )
+                };
+
+                let identifier_name = match &identifier_token.token_type {
+                    TokenType::Identifier(value) => value,
+                    _ => report_error(
+                        format!(
+                            "Unexpected token `{}` after opening bracket! Expected label identifier!",
+                            identifier_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        identifier_token.line_number,
+                        identifier_token.column_start,
+                        identifier_token.column_end,
+                    ),
+                };
+
+                /* Validate the closing brackets */
+
+                let Some(close_token) = tokens.pop_front() else {
+                    report_error(
+                        "Expected closing bracket after label identifier!",
+                        path,
+                        lines,
+                        identifier_token.line_number,
+                        identifier_token.column_start,
+                        identifier_token.column_end,
+                    )
+                };
+
+                let TokenType::CloseBracket = close_token.token_type else {
+                    report_error(
+                        format!(
+                            "Unexpected token `{}` after label identifier! Expected closing bracket!",
+                            close_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        close_token.line_number,
+                        close_token.column_start,
+                        close_token.column_end,
+                    )
+                };
+
+                // There should not be any more tokens after a label dereference
+                if !tokens.is_empty() {
+                    let illegal_token = tokens.pop_front().unwrap();
+
+                    report_error(
+                        format!(
+                            "Unexpected token `{}` after label dereference!",
+                            illegal_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        illegal_token.line_number,
+                        illegal_token.column_start,
+                        illegal_token.column_end,
+                    )
+                }
+
+                InstructionArgumentType::LabelValue(identifier_name.clone())
+            }
+            TokenType::Register(name) => {
+                if !tokens.is_empty() {
+                    let illegal_token = tokens.pop_front().unwrap();
+
+                    report_error(
+                        format!(
+                            "Unexpected token `{}` after register name!",
+                            illegal_token.value
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        illegal_token.line_number,
+                        illegal_token.column_start,
+                        illegal_token.column_end,
+                    )
+                }
+
+                // Make sure the register name is valid
+                let Some(register) = Register::from_name(name) else {
+                    report_error(
+                        format!(
+                            "Register name `{name}` is invalid!"
+                        )
+                        .as_str(),
+                        path,
+                        lines,
+                        first_token.line_number,
+                        first_token.column_start,
+                        first_token.column_end,
+                    )
+                };
+
+                InstructionArgumentType::Register(register)
+            }
+            // TODO - Add more specific error messages for each token
+            _ => report_error(
+                format!("Unexpected token `{}` in argument list!", first_token.value).as_str(),
+                path,
+                lines,
+                first_token.line_number,
+                first_token.column_start,
+                first_token.column_end,
+            ),
+        }
     }
 }
 
@@ -327,8 +636,6 @@ impl Parsable for InstructionArguments {
 
         let mut args = split_tokens_by_commas(path, lines, argument_tokens);
 
-        println!("args = {args:#?}");
-
         while !args.is_empty() {
             let mut arg = args.pop_front().unwrap();
 
@@ -339,7 +646,6 @@ impl Parsable for InstructionArguments {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub enum Register {
     /* 8-bit */
@@ -357,7 +663,7 @@ pub enum Register {
 }
 
 impl Register {
-    fn from_name(name: String) -> Option<Register> {
+    fn from_name(name: &String) -> Option<Register> {
         let reg = match name.to_lowercase().as_str() {
             "ax" => Register::AX,
             "bx" => Register::BX,
@@ -437,6 +743,11 @@ impl Parsable for TextSection {
             while !subroutine_tokens.is_empty() {
                 let mut line = read_tokens_to_eol(&mut subroutine_tokens);
 
+                // Grab the line details for error reporting later
+                let line_number = line.front().unwrap().line_number;
+                let col_start = line.front().unwrap().column_start;
+                let col_end = line.back().unwrap().column_end;
+
                 let first_line_token = line.pop_front().unwrap();
 
                 // Make sure first token is an instruction
@@ -451,14 +762,21 @@ impl Parsable for TextSection {
                     )
                 };
 
-                println!("Found instruction: {instruction_mnemonic:#?}");
-                println!("Tokens in instruction: {line:#?}");
+                let mut instruction_arguments = InstructionArguments::parse(path, lines, &mut line);
 
-                let instruction_arguments = InstructionArguments::parse(path, lines, &mut line);
+                let instruction = Instruction::parse(
+                    instruction_mnemonic,
+                    &mut instruction_arguments,
+                    path,
+                    lines,
+                    line_number,
+                    col_start,
+                    col_end,
+                );
 
-                println!("Parsed arguments: {instruction_arguments:#?}");
+                println!("Parsed instruction: {instruction:#?}");
 
-                let instruction = Instruction::parse(instruction_mnemonic, instruction_arguments);
+                subroutine_label.instructions.push(instruction);
             }
 
             text.labels.push(subroutine_label);
@@ -470,7 +788,7 @@ impl Parsable for TextSection {
 
 #[rustfmt::skip]
 #[derive(Debug)]
-#[allow(non_camel_case_types, dead_code)]
+#[allow(non_camel_case_types)]
 pub enum Instruction {
     /* nop :O */
     nop,                                            // nop                  ; No Operation
@@ -481,12 +799,11 @@ pub enum Instruction {
     mov_RegisterToRegister(Register, Register),     // mov %eax, %ebx       ; Copy value in %ebx to %eax
     mov_ImmediateToMemory8(u16, u8),                // mov $F354, #69       ; Copy 8 bit immediate #69 to mem address $F354
     mov_ImmediateToMemory16(u16, u16),              // mov $F354, #420      ; Copy 16 bit immediate #420 to mem addresses $F354-F355
-    mov_ImmediateToMemory32(u16, u32),              // mov $F354, #69420    ; Copy 32 bit immediate #69420 to mem address $F354-F357
     /* add - accumulator */
     add_RegisterToAccumulator(Register),            // add %ebx             ; Add the value of %ebx to the accumulator register
     add_ImmediateToAccumulator(u16),                // add #2               ; Add 2 to the accumulator register
     /* add - to register */
-    add_RegisterToRegister(Register, Register),     // add %ebx, ecx        ; Add the value of %ecx to the value in %ebx
+    add_RegisterToRegister(Register, Register),     // add %ebx, %ecx        ; Add the value of %ecx to the value in %ebx
     add_ImmediateToRegister(Register, u16),         // add %ebx, #2         ; Add 2 to the value in %ebx
     /* inc/dec - accumulator */
     inc_Accumulator,                                // inc                  ; Increment the accumulator
@@ -514,9 +831,135 @@ pub enum Instruction {
 impl Instruction {
     fn parse(
         instruction_mnemonic: &String,
-        instruction_arguments: InstructionArguments,
+        instruction_arguments: &mut InstructionArguments,
+        path: &PathBuf,
+        lines: &Vec<String>,
+        line_number: u32,
+        col_start: u32,
+        col_end: u32,
     ) -> Instruction {
-        todo!()
+        let num_args = instruction_arguments.len();
+
+        match instruction_mnemonic.as_str() {
+            "nop" => {
+                if num_args != 0 {
+                    report_error(
+                        format!("`{instruction_mnemonic}` instruction expects 0 arguments, but got {num_args}").as_str(),
+                        path,
+                        lines,
+                        line_number,
+                        col_start,
+                        col_end,
+                    )
+                }
+
+                Instruction::nop
+            }
+            "mov" => {
+                if num_args != 2 {
+                    report_error(
+                        format!("`{instruction_mnemonic}` instruction expects 2 arguments, but got {num_args}").as_str(),
+                        path,
+                        lines,
+                        line_number,
+                        col_start,
+                        col_end,
+                    )
+                }
+
+                let (arg1, arg2) = (
+                    instruction_arguments.pop_front().unwrap(),
+                    instruction_arguments.pop_front().unwrap(),
+                );
+
+                match (arg1, arg2) {
+                    (
+                        InstructionArgumentType::MemoryAddress(address), 
+                        InstructionArgumentType::Register(register)
+                    ) => Instruction::mov_RegisterToMemory(address, register),
+                    (
+                        InstructionArgumentType::Register(register),
+                        InstructionArgumentType::MemoryAddress(address), 
+                    ) => Instruction::mov_MemoryToRegister(register, address),
+                    (
+                        InstructionArgumentType::Register(register),
+                        InstructionArgumentType::Immediate(immediate), 
+                    ) => Instruction::mov_ImmediateToRegister(register, immediate),
+                    // TODO - Emit warning if registers are the same
+                    (
+                        InstructionArgumentType::Register(dest_register),
+                        InstructionArgumentType::Register(src_register), 
+                    ) => Instruction::mov_RegisterToRegister(dest_register, src_register),
+                    (
+                        InstructionArgumentType::MemoryAddress(address),
+                        InstructionArgumentType::Immediate(immediate_16), 
+                    ) => Instruction::mov_ImmediateToMemory16(address, immediate_16),
+                    _ => report_error(
+                        format!("Could not find valid overload of `{instruction_mnemonic}` instruction for supplied argument types").as_str(),
+                        path,
+                        lines,
+                        line_number,
+                        col_start,
+                        col_end,
+                    )
+                }
+            }
+            "add" => {
+                if num_args < 1 || num_args > 2 {
+                    report_error(
+                        format!("`{instruction_mnemonic}` instruction expects 1 or 2 arguments, but got {num_args}").as_str(),
+                        path,
+                        lines,
+                        line_number,
+                        col_start,
+                        col_end,
+                    )
+                }
+
+                if num_args == 1 {
+                    let arg = instruction_arguments.pop_front().unwrap();
+    
+                    match arg {
+                        InstructionArgumentType::Register(register) => Instruction::add_RegisterToAccumulator(register),
+                        InstructionArgumentType::Immediate(immediate) => Instruction::add_ImmediateToAccumulator(immediate),
+                        _ => report_error(
+                            format!("Could not find valid overload of `{instruction_mnemonic}` instruction for supplied argument types").as_str(),
+                            path,
+                            lines,
+                            line_number,
+                            col_start,
+                            col_end,
+                        )
+                    }
+                } else {
+                    let (arg1, arg2) = (
+                        instruction_arguments.pop_front().unwrap(),
+                        instruction_arguments.pop_front().unwrap(),
+                    );
+
+                    match (arg1, arg2) {
+                        (
+                            InstructionArgumentType::Register(dest_register), 
+                            InstructionArgumentType::Register(src_register)
+                        ) => Instruction::add_RegisterToRegister(dest_register, src_register),
+                        (
+                            InstructionArgumentType::Register(register),
+                            InstructionArgumentType::Immediate(immediate), 
+                        ) => Instruction::add_ImmediateToRegister(register, immediate),
+                        _ => report_error(
+                            format!("Could not find valid overload of `{instruction_mnemonic}` instruction for supplied argument types").as_str(),
+                            path,
+                            lines,
+                            line_number,
+                            col_start,
+                            col_end,
+                        )
+                    }
+                }
+
+            }
+            _ => todo!("Instruction `{instruction_mnemonic}` not implemented"),
+        }
     }
 }
 
