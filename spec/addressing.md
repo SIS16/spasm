@@ -63,15 +63,12 @@ The high nibble describes the addressing mode for the first parameter (dest) and
 
 ### Bits of addressing mode nibble
 
-4 - Addressing Mode (0 for direct, 1 for indirect)
-3 - Value type (0 for constant, 1 for register)
-
-If direct and constant:
-2 - Constant Type (0 for memorty address, 1 for immediate)
-
-Else: (indirect constant is assumed to be memory address)
-2-1 - Indirect addressing mode:
-00 = Only base
-01 = Base and constant offset
-10 = Base and register offset
-11 = Base and scaled register offset
+| Bit                                                     | Name                     | Description                               |
+| ------------------------------------------------------- | ------------------------ | ----------------------------------------- |
+| 4                                                       | Addressing Mode          | `0` for direct, `1` for indirect          |
+| 3                                                       | Value type               | `0` for constant, `1` for register        |
+| 2 (direct and constant)                                 | Constant Type            | `0` for memory address, `1` for immediate |
+| 2-1 (indirect constant is assumed to be memory address) | Indirect Addressing Mode | `00` = Only base                          |
+|                                                         |                          | `01` = Base and constant offset           |
+|                                                         |                          | `10` = Base and register offset           |
+|                                                         |                          | `11` = Base and scaled register offset    |
