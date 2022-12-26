@@ -14,23 +14,24 @@ pub struct Token {
     pub token_type: TokenType,
 }
 
+#[rustfmt::skip]
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
-    Label(String),     // Any valid identifier followed by ':' and whitespace to end of line
-    Directive(String), // '.' followed by a valid identifier
+    Label(String),       // Any valid identifier followed by ':' and whitespace to end of line
+    Directive(String),   // '.' followed by a valid identifier
     Instruction(String), // Any valid identifier at the beginning of a line
-    Comma,             // ','
-    Register(String),  // '%' followed by any identifier
-    Immediate,         // '#'
-    Decimal(String),   // any decimal value without a prefix
-    Binary(String),    // '%' followed by a binary value
-    Hex(String),       // '$' followed by a hex value
+    Comma,               // ','
+    Register(String),    // '%' followed by any identifier
+    Immediate,           // '#'
+    Decimal(String),     // any decimal value without a prefix
+    Binary(String),      // '%' followed by a binary value
+    Hex(String),         // '$' followed by a hex value
     AsciiString(String), // Any valid ascii string enclosed by '"' including valid escape characters
-    Identifier(String), // Any alphanumeric value on its own
-    OpenBracket,       // '['
-    CloseBracket,      // ']'
-    OpenParenthesis,   // '('
-    CloseParenthesis,  // ')'
+    Identifier(String),  // Any alphanumeric value on its own
+    OpenBracket,         // '['
+    CloseBracket,        // ']'
+    OpenParenthesis,     // '('
+    CloseParenthesis,    // ')'
 }
 
 impl Token {
