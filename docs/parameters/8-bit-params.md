@@ -1,4 +1,4 @@
-# 16-bit Parameter Types
+# 8-bit Parameter Types
 
 Instructions that accept a source and/or a destination can accept values using several addressing modes.
 This document outlines all the possible parameter types and addressing modes for 16-bit instructions.
@@ -8,46 +8,30 @@ This document outlines all the possible parameter types and addressing modes for
 In the following example code, instructions prefixed with `!` are illegal and will not assemble.
 
 ```asm
-    ; Raw moves
-    mov $F354, %ax               ; Copy 16-bit value in %ax to mem address $F354-F355
-    mov %ax, $F354               ; Copy 16-bit value in mem addresses $F354-F355 to %ax
-    mov %ax, #$F354              ; Copy immediate 16-bit value #$F354 to %ax
-    mov %ax, %bx                 ; Copy 16-bit value in %bx to %ax
-    mov $F354, #69               ; Copy 16-bit immediate #69 to mem address $F354-F355
+    ; Direct 8-bit Addressing
+    movb $F354, %al              ; Copy 8-bit value in %al to mem address $F354
+    movb %al, $F354              ; Copy 8-bit value in mem address $F354 to %al
+    movb %al, #$69               ; Copy immediate 8-bit value #$69 to %al
+    movb %al, %bl                ; Copy 8-bit value in %bl to %al
+    movb $F354, #69              ; Copy 8-bit immediate #69 to mem address $F354
+    
+    ; Indirect 8-bit Addressing
+    movb [$F354], %al              ; Copy 8-bit value in %al to the mem address stored as a 16-bit pointer in $F354-F355
+    movb %al,   [$F354]            ; Copy 8-bit value at the pointer address stored in mem addresses $F354-F355 to %ax
+    movb [%ax], #$F3               ; Copy immediate 8-bit value #$F3 to the mem address stored as a 16-bit pointer %ax
+    movb [%ax], %bl                ; Copy 8-bit value in %bl to the mem address stored as a 16-bit pointer in %ax
+    movb %al, [%bx]                ; Copy 8-bit value at the pointer address stored in %bx to %al
+    movb [$F354], #69              ; Copy 8-bit immediate #69 to the mem address stored as a 16-bit pointer in $F354-F355
+    movb [label], #$69             ; (Dangerous if label does contain a valid ram address) Copy the 8-bit immediate #$69 into the mem address stored as a 16-bit pointer at the labels address in rom
+    movb %al, [label]              ; Copy the 8-bit value at the pointer address stored in address of the label into %al
+    movb [%spx + 2], #$F3          ; Copy immediate 8-bit value #$F3 to the mem address computed by adding 2 to the stack pointer (%sp)
+    movb [%spx + %ax * 2], #$F3    ; Copy immediate 8-bit value #$F3 to the mem address computed by adding 2 multiplied by the value in %ax to the stack pointer (%sp)
 
-    ; Dereferencing pointers
-    mov [$F354], %ax             ; Copy 16-bit value in %ax to the mem address stored as a 16-bit pointer in $F354-F355
-  ! mov $F354,   [%ax]           ; (Illegal Mem->Mem) Copy 16-bit value at the pointer address stored in %ax to the mem address $F354-F355
-  ! mov [$F354], [%ax]           ; (Illegal Mem->Mem) Copy 16-bit value at the pointer address stored in %ax to the mem address stored as a 16-bit pointer in $F354-F355
-
-  ! mov [%ax], $F354             ; (Illegal Mem->Mem) Copy 16-bit value in mem addresses $F354-F355 to the mem address stored as a 16-bit pointer in %ax
-    mov %ax,   [$F354]           ; Copy 16-bit value at the pointer address stored in mem addresses $F354-F355 to %ax
-  ! mov [%ax], [$F354]           ; (Illegal Mem->Mem) Copy 16-bit value at the pointer address stored in mem addresses $F354-F355 to the mem address stored as a 16-bit pointer in %ax
-
-    mov [%ax], #$F354            ; Copy immediate 16-bit value #$F354 to the mem address stored as a 16-bit pointer %ax
-  ! mov %ax, [#$F354]            ; (Illegal - Cannot dereference an immediate)
-  ! mov [%ax], [#$F354]          ; (Illegal - Cannot dereference an immediate)
-
-    mov [%ax], %bx               ; Copy 16-bit value in %bx to the mem address stored as a 16-bit pointer in %ax
-    mov %ax, [%bx]               ; Copy 16-bit value at the pointer address stored in %bx to %ax
-  ! mov [%ax], [%bx]             ; (Illegal Mem->Mem) Copy 16-bit value at the pointer address stored in %bx to the mem address stored as a 16-bit pointer in %ax
-
-    mov [$F354], #69             ; Copy 16-bit immediate #69 to the mem address stored as a 16-bit pointer in $F354-F355
-  ! mov $F354, [#69]             ; (Illegal - Cannot dereference an immediate)
-  ! mov [$F354], [#69]           ; (Illegal - Cannot dereference an immediate)
-
-  ! mov label, #$69              ; (Illegal - Write to ROM address) Copy the 16-bit immediate #$69 into the address of the label
-    mov [label], #$69            ; (Dangerous if label does contain a valid ram address) Copy the 16-bit immediate #$69 into the mem address stored as a 16-bit pointer at the labels address in rom
-    mov %ax, label               ; Copy the 16-bit rom address of the label into %ax
-    mov %ax, [label]             ; Copy the 16-bit value at the pointer address stored in address of the label into %ax
-
-    mov [%sp + 2], #$F354        ; Copy immediate 16-bit value #$F354 to the mem address computed by adding 2 to the stack pointer (%sp)
-    mov [%sp + %ax * 2], #$F354  ; Copy immediate 16-bit value #$F354 to the mem address computed by adding 2 multiplied by the value in %ax to the stack pointer (%sp)
 ```
 
 ## Encoding
 
-The parameter types for an instruction is encoded as 2 nibbles of 4 bits.
+The parameter types for an instruction are encoded as 2 nibbles of 4 bits.
 The high nibble describes the type of the first parameter (dest) and the low nibble describes the type of the second parameter (src).
 
 | Parameter         | Addressing Mode Nibble | Data Bytes                | Data Bytes Description                                                                                                   | Destination | Source |
