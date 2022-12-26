@@ -786,7 +786,7 @@ impl Parsable for TextSection {
 
 #[rustfmt::skip]
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 pub enum Instruction {
     /* nop :O */
     nop,                                            // nop                  ; No Operation
@@ -952,7 +952,7 @@ impl Instruction {
                             lines,
                             line_number,
                             col_start,
-                            col_end,
+                                col_end,
                         )
                     }
                 }
